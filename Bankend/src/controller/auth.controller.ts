@@ -36,6 +36,7 @@ export const register = async (req: Request, res: Response) => {
         password: hashedPassword,
         role: validatedData.role,
         manager_id: validatedData.manager_id,
+      
       })
       .returning();
 
