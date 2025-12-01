@@ -3,11 +3,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getRequestLog = exports.getAllRequests = exports.CloseRequest = exports.ApproveOrRejectRequest = exports.CreateRequest = void 0;
+exports.getAllRequests = exports.getRequestLog = exports.CloseRequest = exports.ApproveOrRejectRequest = exports.CreateRequest = void 0;
 const drizzle_orm_1 = require("drizzle-orm");
 const db_1 = __importDefault(require("../db"));
 const schema_1 = require("../db/schema");
 const request_validation_1 = require("../validation/request.validation");
+const gel_core_1 = require("drizzle-orm/gel-core");
 const CreateRequest = async (req, res) => {
     try {
         const body = request_validation_1.requestValidationSchema.parse({
@@ -156,27 +157,6 @@ const CloseRequest = async (req, res) => {
     }
 };
 exports.CloseRequest = CloseRequest;
-const getAllRequests = async (req, res) => {
-    try {
-        const { page, limit, status } = req.query;
-        const requests = await db_1.default
-            .select()
-            .from(schema_1.RequestSchema)
-            .orderBy((0, drizzle_orm_1.desc)(schema_1.RequestSchema.created_at))
-            .limit(limit ? parseInt(limit) : 10)
-            .offset(page ? (parseInt(page) - 1) * 10 : 0);
-        const total = await db_1.default
-            .select({ count: (0, drizzle_orm_1.sql) `count(*)` })
-            .from(schema_1.RequestSchema)
-            .limit(limit ? parseInt(limit) : 10)
-            .offset(page ? (parseInt(page) - 1) * 10 : 0);
-        return res.status(200).json({ requests, total: total[0].count });
-    }
-    catch (error) {
-        return res.status(500).json({ message: error.message });
-    }
-};
-exports.getAllRequests = getAllRequests;
 const getRequestLog = async (req, res) => {
     try {
         const { request_id } = req.params;
@@ -191,3 +171,63 @@ const getRequestLog = async (req, res) => {
     }
 };
 exports.getRequestLog = getRequestLog;
+const getAllRequests = async (req, res) => {
+    try {
+        const { page, limit, status } = req.query;
+        // Type casting and safe defaults
+        const pageNum = page ? parseInt(page) : 1;
+        const limitNum = limit ? parseInt(limit) : 10;
+        const offset = (pageNum - 1) * limitNum;
+        const statusFilter = status;
+        const whereCondition = statusFilter ? (0, drizzle_orm_1.eq)(schema_1.RequestSchema.status, statusFilter) : undefined;
+        const AssignedUser = (0, gel_core_1.alias)(schema_1.UserSchema, "assigned_to");
+        const CreatedUser = (0, gel_core_1.alias)(schema_1.UserSchema, "created_by");
+        const ManagerUser = (0, gel_core_1.alias)(schema_1.UserSchema, "manager_id");
+        const requests = await db_1.default
+            .select({
+            id: schema_1.RequestSchema.id,
+            title: schema_1.RequestSchema.title,
+            description: schema_1.RequestSchema.description,
+            status: schema_1.RequestSchema.status,
+            assigned_to: {
+                id: AssignedUser.id,
+                name: AssignedUser.name,
+            },
+            created_by: {
+                id: CreatedUser.id,
+                name: CreatedUser.name,
+            },
+            manager: {
+                id: ManagerUser.id || null,
+                name: ManagerUser.name || null,
+            },
+            created_at: schema_1.RequestSchema.created_at,
+            updated_at: schema_1.RequestSchema.updated_at,
+        })
+            .from(schema_1.RequestSchema)
+            .leftJoin(AssignedUser, (0, drizzle_orm_1.eq)(schema_1.RequestSchema.assigned_to, AssignedUser.id))
+            .leftJoin(CreatedUser, (0, drizzle_orm_1.eq)(schema_1.RequestSchema.created_by, CreatedUser.id))
+            .leftJoin(ManagerUser, (0, drizzle_orm_1.eq)(AssignedUser.manager_id, ManagerUser.id))
+            .orderBy((0, drizzle_orm_1.desc)(schema_1.RequestSchema.created_at))
+            .limit(limitNum)
+            .offset(offset)
+            .where(whereCondition);
+        // 4. Total Count Query: Apply filtering, but REMOVE LIMIT/OFFSET
+        const total = await db_1.default
+            .select({ count: (0, drizzle_orm_1.sql) `count(*)` })
+            .from(schema_1.RequestSchema)
+            .where(whereCondition); // Apply status filtering
+        // 5. Send the response
+        return res.status(200).json({
+            requests,
+            total: total[0]?.count || 0, // Safely access the count
+            page: pageNum,
+            limit: limitNum,
+        });
+    }
+    catch (error) {
+        console.error("Error fetching requests:", error);
+        return res.status(500).json({ message: "Internal server error." });
+    }
+};
+exports.getAllRequests = getAllRequests;
