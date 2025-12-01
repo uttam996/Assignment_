@@ -4,7 +4,7 @@
 
 ### 1. Navigate to the backend folder
 ```bash
-cd backend
+cd server
 ```
 
 ### 2. Install backend dependencies
@@ -30,7 +30,7 @@ npm run dev
 
 ### 1. Navigate to the frontend folder
 ```bash
-cd frontend
+cd client
 ```
 
 ### 2. Install frontend dependencies
