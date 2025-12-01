@@ -19,7 +19,18 @@ JWT_SECRET="secret_key"
 PORT=3000
 ```
 
-### 4. Start the backend server
+
+### 4. Genrate Migration 
+```bash
+npx drizzle-kit generate
+```
+
+### 5. Apply to Database
+```bash
+npx drizzle-kit push
+```
+
+### 6. Start the backend server
 ```bash
 npm run dev
 ```
